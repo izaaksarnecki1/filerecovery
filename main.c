@@ -1,5 +1,8 @@
+#include <errno.h>
+#include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <sys/mman.h>
 #include <sys/stat.h>
 #include <sys/types.h>
@@ -65,7 +68,49 @@ int main(int argc, char *argv[]) {
     }
   }
 
-  printf("Num pics: %d\n", num_pics);
+  if (mkdir("recovered", 0755) != 0 && errno != EEXIST) {
+    fprintf(stderr, "Failed to create recovered/: %s\n", strerror(errno));
+    return 1;
+  }
+
+  int recovered = 0;
+  for (int i = 0; i < num_pics; i++) {
+    off_t start = offsets[i];
+    off_t window_end = (i == num_pics - 1) ? filestat.st_size : offsets[i + 1];
+
+    off_t last_eoi = -1;
+    for (off_t p = start; p + 1 < window_end; p++) {
+      if (regionvals[p] == 0xFF && regionvals[p + 1] == 0xD9) {
+        last_eoi = p;
+      }
+    }
+
+    if (last_eoi < 0) {
+      fprintf(stderr, "photo %d: no EOI found in window, skipping\n", i + 1);
+      continue;
+    }
+
+    off_t end = last_eoi + 2;
+    size_t length = (size_t)(end - start);
+
+    char filename[64];
+    snprintf(filename, sizeof(filename), "recovered/photo_%02d.jpg", i + 1);
+
+    FILE *out = fopen(filename, "wb");
+    if (out == NULL) {
+      fprintf(stderr, "Failed to open %s: %s\n", filename, strerror(errno));
+      continue;
+    }
+    if (fwrite(regionvals + start, 1, length, out) != length) {
+      fprintf(stderr, "Failed to write all bytes to %s\n", filename);
+      fclose(out);
+      continue;
+    }
+    fclose(out);
+    recovered++;
+  }
+
+  printf("Found %d JPEGs, recovered %d to ./recovered/\n", num_pics, recovered);
   print_arr(offsets, num_pics);
 
   free(offsets);
