@@ -5,3 +5,5 @@ Instead of using a reliable, working tool such as
 [PhotoRec](https://www.cgsecurity.org/wiki/PhotoRec),
 I want to write a small program that does this.
 Seems like a good way to learn about .jpg files, I guess.
+
+Also why are all the tools so bloated and cost money?? 
